@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beyond Burger — AR Menu</title>
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:   #2D6A4F;
+      --green-light: #40916C;
+      --cream:   #F8F4EE;
+      --charcoal:#1A1A18;
+      --warm:    #E9E2D6;
+      --muted:   #7B7469;
+      --red:     #C0392B;
+      --border:  #DDD7CC;
+      --white:   #FFFFFF;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--charcoal);
+      font-family: 'Inter', sans-serif;
+      color: var(--charcoal);
+      overflow: hidden;
+    }
+
+    /* ── SPLIT LAYOUT ── */
+    .layout {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* LEFT — 3D viewer, 55% */
+    .viewer-pane {
+      width: 55%;
+      flex-shrink: 0;
+      background: radial-gradient(ellipse at 40% 55%, #2a1f0e 0%, #0e0b07 70%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .viewer-pane::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 60%, rgba(64,145,108,0.10) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      --poster-color: transparent;
+    }
+
+    /* hint */
+    .viewer-hint {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      letter-spacing: 0.07em;
+      color: rgba(255,255,255,0.35);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .hint-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* AR button */
+    #ar-button {
+      position: absolute;
+      bottom: 22px;
+      right: 22px;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 11px 20px;
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      transition: background 0.2s, transform 0.15s;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+    #ar-button:hover { background: var(--green-light); }
+    #ar-button:active { transform: scale(0.96); }
+    #ar-button svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* RIGHT — info pane, 45% */
+    .info-pane {
+      width: 45%;
+      background: var(--cream);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-inner {
+      padding: 40px 36px 48px;
+      flex: 1;
+    }
+
+    /* top label */
+    .dish-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .label-tag {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--green);
+      background: rgba(45,106,79,0.1);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(45,106,79,0.2);
+    }
+
+    /* dish name */
+    .dish-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1.1;
+      color: var(--charcoal);
+      margin-bottom: 6px;
+    }
+
+    .dish-sub {
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 300;
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+
+    .dish-price {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--charcoal);
+      margin-bottom: 24px;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 0;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .stat-icon { font-size: 20px; margin-bottom: 5px; }
+    .stat-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--charcoal);
+      margin-bottom: 2px;
+    }
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── SPICE METER ── */
+    .spice-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 16px;
+    }
+
+    .spice-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--charcoal);
+      flex: 1;
+    }
+
+    .spice-dots { display: flex; gap: 5px; }
+    .dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .dot.on { background: var(--red); }
+    .dot.half {
+      background: linear-gradient(90deg, var(--red) 50%, var(--border) 50%);
+    }
+
+    /* ── TASTE NOTES ── */
+    .taste-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .taste-pill {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--charcoal);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .taste-pill span.icon { font-size: 15px; }
+
+    /* ── INGREDIENTS ── */
+    .ingredients-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .ing-tag {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--charcoal);
+    }
+
+    /* ── ALLERGEN ── */
+    .allergen-box {
+      background: #FFF8EC;
+      border: 1px solid #F0D98A;
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 10px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #7A5A10;
+    }
+    .allergen-box .icon { font-size: 18px; flex-shrink: 0; }
+
+    /* ── CTA ── */
+    .cta-btn {
+      width: 100%;
+      background: var(--charcoal);
+      color: var(--white);
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      margin-top: 6px;
+    }
+    .cta-btn:hover { background: #2c2c2a; }
+    .cta-btn:active { transform: scale(0.98); }
+
+    /* ── MOBILE: stack vertically ── */
+    @media (max-width: 768px) {
+      html, body { overflow: auto; }
+
+      .layout {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+      }
+
+      .viewer-pane {
+        width: 100%;
+        height: 55vh;
+        min-height: 320px;
+      }
+
+      .info-pane {
+        width: 100%;
+        overflow-y: visible;
+      }
+
+      .info-inner { padding: 28px 20px 40px; }
+
+      .dish-name { font-size: 26px; }
+      .stats-row { grid-template-columns: 1fr 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ══ LEFT: 3D VIEWER ══ -->
+  <div class="viewer-pane">
+    <model-viewer
+      src="burger.glb"
+      alt="Beyond Meat Burger 3D model"
+      ar
+      ar-modes="webxr scene-viewer quick-look"
+      camera-controls
+      auto-rotate
+      auto-rotate-delay="800"
+      rotation-per-second="18deg"
+      shadow-intensity="1.2"
+      shadow-softness="1"
+      exposure="1.05"
+      camera-orbit="0deg 75deg 0.8m"
+      min-camera-orbit="auto auto 0.5m"
+      max-camera-orbit="auto auto 6m"
+      ar-scale="fixed"
+      scale="2 2 2"
+      interaction-prompt="auto"
+      interaction-prompt-style="wiggle"
+    >
+      <button slot="ar-button" id="ar-button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 8V5a2 2 0 0 1 2-2h3M2 16v3a2 2 0 0 0 2 2h3M16 2h3a2 2 0 0 1 2 2v3M16 22h3a2 2 0 0 0 2-2v-3"/>
+          <rect x="7" y="7" width="10" height="10" rx="1"/>
+        </svg>
+        View in AR
+      </button>
+    </model-viewer>
+
+    <div class="viewer-hint">
+      <div class="hint-dot"></div>
+      Drag · Rotate · Pinch to zoom
+      <div class="hint-dot"></div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: INFO PANE ══ -->
+  <div class="info-pane">
+    <div class="info-inner">
+
+      <!-- Tags -->
+      <div class="dish-label">
+        <span class="label-tag">🌱 100% Vegan</span>
+        <span class="label-tag">Plant-Based</span>
+      </div>
+
+      <!-- Name -->
+      <h1 class="dish-name">Beyond Meat<br>Burger</h1>
+      <p class="dish-sub">A bold, juicy plant-based patty stacked high — made for those who want it all without the meat.</p>
+      <p class="dish-price">$18</p>
+
+      <div class="divider"></div>
+
+      <!-- Stats -->
+      <p class="section-label">Nutrition Highlights</p>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">💪</div>
+          <div class="stat-value">20g</div>
+          <div class="stat-label">Protein</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌿</div>
+          <div class="stat-value">0g</div>
+          <div class="stat-label">Cholesterol</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔥</div>
+          <div class="stat-value">490</div>
+          <div class="stat-label">Calories</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Spice Level -->
+      <p class="section-label">Spice Level</p>
+      <div class="spice-row">
+        <span class="spice-text">🌶 Heat</span>
+        <div class="spice-dots">
+          <div class="dot on"></div>
+          <div class="dot on"></div>
+          <div class="dot on"></div>
+          <div class="dot on"></div>
+          <div class="dot half"></div>
+        </div>
+        <span style="font-size:12px; color:var(--red); font-weight:600;">Hot</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Taste Notes -->
+      <p class="section-label">Taste Profile</p>
+      <div class="taste-grid">
+        <div class="taste-pill"><span class="icon">🥦</span> Earthy & Smoky</div>
+        <div class="taste-pill"><span class="icon">🧄</span> Garlicky Kick</div>
+        <div class="taste-pill"><span class="icon">🧀</span> Creamy Finish</div>
+        <div class="taste-pill"><span class="icon">⚡</span> Nothing Like Meat</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Ingredients -->
+      <p class="section-label">Ingredients</p>
+      <div class="ingredients-wrap">
+        <span class="ing-tag">Eggplant Patty</span>
+        <span class="ing-tag">Brioche Bun</span>
+        <span class="ing-tag">Roma Tomatoes</span>
+        <span class="ing-tag">Iceberg Lettuce</span>
+        <span class="ing-tag">Vegan Mayo</span>
+        <span class="ing-tag">Caramelised Onion</span>
+        <span class="ing-tag">Pickles</span>
+        <span class="ing-tag">Jalapeños</span>
+        <span class="ing-tag">Sriracha Drizzle</span>
+        <span class="ing-tag">Mustard</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Allergens -->
+      <p class="section-label">Allergens</p>
+      <div class="allergen-box">
+        <span class="icon">⚠️</span>
+        <span>May contain <strong>dairy</strong> and <strong>gluten</strong>. Produced in a kitchen that handles nuts and soy. Please inform staff of any allergies before ordering.</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- CTA -->
+      <button class="cta-btn">Add to Order — $18</button>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
